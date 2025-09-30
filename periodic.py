@@ -181,6 +181,8 @@ These are availible commands
 It is sufficient to type the first letter of command.
 Date is always optional. If it is not supplied, today's date will be used.
 """)
+        else:
+            assert False, f'Unknown command: {cmd}'
 
     except AssertionError as err:
         print(err)
