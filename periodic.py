@@ -31,7 +31,7 @@ def drawGraph(firstDay: date, mean: np.floating, sd: np.floating):
     highest = max(probs)
     scores = [round(i / highest * 20) for i in probs]
     for i in range(start, end + 1):
-        print(firstDay + timedelta(days=i), str(round(probs[i] * 100, 1)) + '%', scores[i] * '\u25A0')
+        print(firstDay + timedelta(days=i), f'{round(probs[i] * 100, 1):>5.1f}% ', scores[i] * '\u25A0')
 
 class DataHandler:
     def __init__(self):
@@ -113,6 +113,28 @@ class DataHandler:
 
         drawGraph(day, *computeStats(data))
 
+    def showFertility(self):
+        # https://www.demographic-research.org/volumes/vol3/5/3-5.pdf
+        cycleData = self.getCycleLengths()
+        periodData = self.getPeriodLengths()
+
+        mCyc, sCyc = computeStats(cycleData)
+        mPer, sPer = computeStats(periodData)
+
+        t, d = self.events[-1]
+        nextStart = d.toordinal() + mCyc
+        nextStartDev = sCyc
+        if t == 's':
+            nextStart += mPer
+            nextStartDev = np.hypot(nextStart, sPer)
+
+        BBTDay = nextStart - 14
+        BBTDev = np.hypot(nextStartDev, 2)
+
+        print('The BBT day can be expected on:')
+        print()
+        drawGraph(date.today() - timedelta(days=50), BBTDay - date.today().toordinal() + 50, BBTDev)
+
 def parseDate(s: str):
     args = re.split(r'\D+', s)
     assert len(args) == 3, 'date must have 3 numbers'
@@ -160,6 +182,9 @@ def main():
         elif cmd == 'c':
             data.showCondition()
 
+        elif cmd == 'f':
+            data.showFertility()
+
         elif cmd == 'l':
             for t, d in data.events:
                 longcmd = {"s": "start", "e": "end"}[t]
@@ -172,6 +197,7 @@ Usage: {APP} [command] [date]
 
 These are availible commands
     Condition       Show the current periodic cycle condition
+    Fertility       Show the fertility summary
     Help            Show this message
     List            List the periodic cycle history
     Start [date]    Add entry: the period started
