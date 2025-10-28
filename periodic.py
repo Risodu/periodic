@@ -126,7 +126,7 @@ class DataHandler:
         nextStartDev = sCyc
         if t == 's':
             nextStart += mPer
-            nextStartDev = np.hypot(nextStart, sPer)
+            nextStartDev = np.hypot(nextStartDev, sPer)
 
         BBTDay = nextStart - 14
         BBTDev = np.hypot(nextStartDev, 2)
