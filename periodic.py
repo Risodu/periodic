@@ -23,15 +23,15 @@ def computeStats(rawdata: list[int]):
 
 def drawGraph(firstDay: date, mean: np.floating, sd: np.floating):
     probs = []
-    for i in range(100):
+    start = max(0, int(np.round(norm.ppf(PROB_TRESHOLD) * sd + mean)))
+    end = int(np.round(norm.ppf(1 - PROB_TRESHOLD) * sd + mean))
+    for i in range(start, end + 1):
         p = norm.cdf((i - mean + 0.5) / sd) - norm.cdf((i - mean - 0.5) / sd)
         probs.append(p)
-    start = int(np.round(norm.ppf(PROB_TRESHOLD) * sd + mean))
-    end = int(np.round(norm.ppf(1 - PROB_TRESHOLD) * sd + mean))
     highest = max(probs)
     scores = [round(i / highest * 20) for i in probs]
-    for i in range(start, end + 1):
-        print(firstDay + timedelta(days=i), f'{round(probs[i] * 100, 1):>5.1f}% ', scores[i] * '\u25A0')
+    for i, day in enumerate(range(start, end + 1)):
+        print(firstDay + timedelta(days=day), f'{round(probs[i] * 100, 1):>5.1f}% ', scores[i] * '\u25A0')
 
 class DataHandler:
     def __init__(self):
@@ -135,6 +135,27 @@ class DataHandler:
         print()
         drawGraph(date.today() - timedelta(days=50), BBTDay - date.today().toordinal() + 50, BBTDev)
 
+    def predictMore(self, n: int):
+        cycleData = self.getCycleLengths()
+        periodData = self.getPeriodLengths()
+
+        mCyc, sCyc = computeStats(cycleData)
+        mPer, sPer = computeStats(periodData)
+
+        t, d = self.events[-1]
+        nextStart = d.toordinal() + mCyc
+        nextStartDev = sCyc
+        if t == 's':
+            nextStart += mPer
+            nextStartDev = np.hypot(nextStartDev, sPer)
+
+        nextStart += (mPer + mCyc) * n
+        nextStartDev = np.hypot(nextStartDev, np.hypot(sCyc, sPer) * np.sqrt(n))
+
+        print(f'Start of next {n+1}-th period be expected on:')
+        print()
+        drawGraph(date.today(), nextStart - date.today().toordinal(), nextStartDev)
+
 def parseDate(s: str):
     args = re.split(r'\D+', s)
     assert len(args) == 3, 'date must have 3 numbers'
@@ -160,9 +181,9 @@ def main():
         else:
             cmd = 'c'
         cmd = cmd[0].lower()
-        datearg = getDate(args)
 
         if cmd in ('s', 'e'):
+            datearg = getDate(args)
             data.events.append((cmd, datearg))
             longcmd = {"s": "start", "e": "end"}[cmd]
             print(f'Period {longcmd}ed on {datearg}.')
@@ -170,6 +191,7 @@ def main():
             data.showCondition()
 
         elif cmd == 'd':
+            datearg = getDate(args)
             l1 = len(data.events)
             data.events = [i for i in data.events if i[1] != datearg]
             data.write()
@@ -185,6 +207,13 @@ def main():
         elif cmd == 'f':
             data.showFertility()
 
+        elif cmd == 'p':
+            try:
+                n = int(args[0]) if args else 1
+                data.predictMore(n - 1)
+            except ValueError as err:
+                assert 0, err
+
         elif cmd == 'l':
             for t, d in data.events:
                 longcmd = {"s": "start", "e": "end"}[t]
@@ -193,7 +222,7 @@ def main():
         elif cmd == 'h':
             print(
 f"""
-Usage: {APP} [command] [date]
+Usage: {APP} [command] [date/n]
 
 These are availible commands
     Condition       Show the current periodic cycle condition
@@ -203,6 +232,7 @@ These are availible commands
     Start [date]    Add entry: the period started
     End [date]      Add entry: the period ended
     Delete [date]   Delete the entry at given date
+    Predict [n]     Predict the start and end of n-th next period
 
 It is sufficient to type the first letter of command.
 Date is always optional. If it is not supplied, today's date will be used.
